@@ -1,4 +1,5 @@
 using InvestFlow.Domain.Entities;
+using InvestFlow.Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -49,5 +50,7 @@ public class OrdemConfiguration : IEntityTypeConfiguration<Ordem>
         //   dentro do próprio índice, sem ler as linhas que serão descartadas.
         builder.HasIndex(o => new { o.DataExecucao, o.Status })
             .HasDatabaseName("IX_Ordens_DataExecucao_Status");
+
+        builder.HasData(SeedData.Ordens());
     }
 }

@@ -1,4 +1,5 @@
 using InvestFlow.Domain.Entities;
+using InvestFlow.Infrastructure.Persistence.Seed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -51,5 +52,7 @@ public class AtivoConfiguration : IEntityTypeConfiguration<Ativo>
         builder.Navigation(a => a.Ordens)
             .HasField("_ordens")
             .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasData(SeedData.Ativos());
     }
 }
