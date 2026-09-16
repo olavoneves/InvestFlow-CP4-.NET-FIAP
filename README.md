@@ -2,6 +2,17 @@
 
 API REST de investimentos: cadastro de ativos e registro de ordens de compra e venda.
 
+## Sumário
+
+- [Domínio](#domínio)
+- [Arquitetura](#arquitetura)
+- [Decisões técnicas](#decisões-técnicas)
+- [Como rodar](#como-rodar)
+- [Testes](#testes)
+- [Configuração](#configuração)
+- [Endpoints](#endpoints)
+- [Integrantes](#integrantes)
+
 ## Domínio
 
 O InvestFlow modela duas entidades com relacionamento **1:N**: um **Ativo** possui várias **Ordens**.
@@ -586,3 +597,10 @@ Headers: `Retry-After: 10`
 }
 ```
 
+## Integrantes
+
+| Nome | RM |
+|---|---|
+| `<Nome completo>` | `RM000000` |
+| `<Nome completo>` | `RM000000` |
+| `<Nome completo>` | `RM000000` |
