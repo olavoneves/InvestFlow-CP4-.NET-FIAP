@@ -1,25 +1,66 @@
+using InvestFlow.Api.Configuration;
+using InvestFlow.Api.Middlewares;
+using InvestFlow.Application;
+using InvestFlow.Infrastructure;
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// 1. Serilog: log estruturado em console + arquivo, enriquecido com RequestId.
+builder.AddSerilogLogging();
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// Camadas da aplicação.
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
+
+// Controllers + 400 do model binding no mesmo formato do 400 da ValidationException.
+builder.Services.AddApiControllers();
+
+// 2. Response Compression: Brotli + Gzip.
+builder.Services.AddApiResponseCompression();
+
+// 3. Rate Limiting nativo: janela fixa por IP, global + política nomeada "fixed".
+builder.Services.AddApiRateLimiting(builder.Configuration);
+
+// 4. Health Checks, incluindo o banco via DbContext.
+builder.Services.AddApiHealthChecks();
+
+// 5. Application Insights apenas se houver connection string; TelemetryClient sempre disponível.
+var telemetriaHabilitada = builder.Services.AddTelemetria(builder.Configuration);
+
+// 6. Swagger com XML comments, annotations e exemplos.
+builder.Services.AddApiSwagger();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+app.Logger.LogInformation(telemetriaHabilitada
+    ? "Application Insights habilitado."
+    : "Application Insights desabilitado: connection string não configurada.");
 
+// 8. Migrations aplicadas na subida em Development.
+app.AplicarMigrationsEmDesenvolvimento();
+
+app.UseRequestIdLogContext();
+app.UseSerilogRequestLogging();
+
+// 7. Middleware global de exceção -> ProblemDetails.
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+app.UseResponseCompression();
 app.UseHttpsRedirection();
 
-app.UseAuthorization();
+// UseRouting explícito antes do rate limiter, para que a política do endpoint ("fixed") seja conhecida.
+app.UseRouting();
+app.UseRateLimiter();
+
+app.UseApiSwagger();
 
 app.MapControllers();
+app.MapApiHealthChecks();
 
 app.Run();
+
+// Exposto para o WebApplicationFactory dos testes de integração.
+public partial class Program
+{
+}
