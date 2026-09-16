@@ -13,7 +13,9 @@ public static class SwaggerExtensions
           devolve `items`, `totalCount`, `totalPages`, `hasNext` e `hasPrevious`.
         - **Erros:** respostas no formato ProblemDetails (RFC 9457). Validação → 400 com `errors` agrupados por
           campo; recurso inexistente → 404; regra de negócio violada → 409; erro inesperado → 500.
-        - **Rate limiting:** 5 requisições a cada 10 segundos por IP. Acima disso → 429 com header `Retry-After`.
+        - **Rate limiting:** limite global de 30 requisições a cada 10 segundos por IP; `GET /api/v1/ativos` tem
+          ainda a política estrita de 5 requisições a cada 10 segundos. Acima do limite → 429 com header `Retry-After`.
+          `/swagger` e os health checks ficam fora do limite.
         - **Saúde:** `/health` (detalhado, inclui o banco) e `/health/live` (processo no ar).
         """;
 

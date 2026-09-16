@@ -11,9 +11,8 @@ namespace InvestFlow.Api.Controllers;
 /// <summary>Cadastro e consulta de ativos negociáveis (ações, FIIs, renda fixa e derivativos).</summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-[EnableRateLimiting(RateLimitingExtensions.PoliticaFixa)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-[SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisições por IP excedido. Consulte o header Retry-After.", typeof(ProblemDetails))]
+[SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite global de requisições por IP excedido. Consulte o header Retry-After.", typeof(ProblemDetails))]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
 [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro inesperado.", typeof(ProblemDetails))]
 public class AtivosController : ControllerBase
@@ -28,14 +27,20 @@ public class AtivosController : ControllerBase
     /// <param name="query">Paginação e filtros opcionais.</param>
     /// <param name="cancellationToken">Cancelado quando o cliente encerra a requisição.</param>
     [HttpGet]
+    [EnableRateLimiting(RateLimitingExtensions.PoliticaEstrita)]
     [SwaggerOperation(
         Summary = "Lista ativos com paginação",
         Description = "Retorna os ativos ordenados por ticker. Filtros opcionais: Tipo e Busca (trecho do ticker ou do nome, " +
-                      "sem diferenciar maiúsculas). PageNumber padrão 1; PageSize padrão 10, máximo 50.")]
+                      "sem diferenciar maiúsculas). PageNumber padrão 1; PageSize padrão 10, máximo 50.\n\n" +
+                      "**Rate limit estrito:** além do limite global (30 requisições a cada 10 segundos por IP), este endpoint " +
+                      "usa a política \"estrito\": 5 requisições a cada 10 segundos por IP. A 6ª requisição dentro da janela " +
+                      "recebe 429 em ProblemDetails, com o header Retry-After indicando em quantos segundos tentar de novo.")]
     [ProducesResponseType(typeof(PagedResult<AtivoResponse>), StatusCodes.Status200OK)]
     [SwaggerResponse(StatusCodes.Status200OK, "Página de ativos com os metadados de navegação.", typeof(PagedResult<AtivoResponse>))]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [SwaggerResponse(StatusCodes.Status400BadRequest, "Paginação ou filtros inválidos.", typeof(ValidationProblemDetails))]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
+    [SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite estrito (5 requisições a cada 10s por IP) ou global excedido. Consulte o header Retry-After.", typeof(ProblemDetails))]
     public async Task<ActionResult<PagedResult<AtivoResponse>>> Listar(
         [FromQuery] AtivoQuery query, CancellationToken cancellationToken)
     {

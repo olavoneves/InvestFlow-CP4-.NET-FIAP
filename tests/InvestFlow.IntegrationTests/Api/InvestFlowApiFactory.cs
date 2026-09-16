@@ -24,16 +24,18 @@ public class InvestFlowApiFactory : WebApplicationFactory<Program>
     private const int PermitLimitSemRestricao = 100_000;
 
     private readonly SqliteConnection _connection = new("DataSource=:memory:");
-    private readonly int _permitLimit;
+    private readonly int _globalPermitLimit;
+    private readonly int _estritoPermitLimit;
     private readonly int _windowSeconds;
 
-    public InvestFlowApiFactory() : this(PermitLimitSemRestricao, windowSeconds: 10)
+    public InvestFlowApiFactory() : this(PermitLimitSemRestricao, PermitLimitSemRestricao, windowSeconds: 10)
     {
     }
 
-    protected InvestFlowApiFactory(int permitLimit, int windowSeconds)
+    protected InvestFlowApiFactory(int globalPermitLimit, int estritoPermitLimit, int windowSeconds)
     {
-        _permitLimit = permitLimit;
+        _globalPermitLimit = globalPermitLimit;
+        _estritoPermitLimit = estritoPermitLimit;
         _windowSeconds = windowSeconds;
 
         // O banco em memória existe enquanto esta conexão estiver aberta.
@@ -49,8 +51,10 @@ public class InvestFlowApiFactory : WebApplicationFactory<Program>
         builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
             new Dictionary<string, string?>
             {
-                ["RateLimiting:PermitLimit"] = _permitLimit.ToString(CultureInfo.InvariantCulture),
-                ["RateLimiting:WindowSeconds"] = _windowSeconds.ToString(CultureInfo.InvariantCulture),
+                ["RateLimiting:Global:PermitLimit"] = _globalPermitLimit.ToString(CultureInfo.InvariantCulture),
+                ["RateLimiting:Global:WindowSeconds"] = _windowSeconds.ToString(CultureInfo.InvariantCulture),
+                ["RateLimiting:Estrito:PermitLimit"] = _estritoPermitLimit.ToString(CultureInfo.InvariantCulture),
+                ["RateLimiting:Estrito:WindowSeconds"] = _windowSeconds.ToString(CultureInfo.InvariantCulture),
             }));
 
         builder.ConfigureTestServices(services =>
@@ -78,13 +82,21 @@ public class InvestFlowApiFactory : WebApplicationFactory<Program>
     }
 }
 
-/// <summary>API com o rate limiting ativo, numa janela longa para o teste não depender de tempo.</summary>
+/// <summary>
+/// API com os limites de produção (global 30, estrito 5), numa janela longa para o teste não depender de tempo.
+/// </summary>
 public sealed class RateLimitedApiFactory : InvestFlowApiFactory
 {
-    public const int PermitLimit = 5;
+    public const int GlobalPermitLimit = 30;
+    public const int EstritoPermitLimit = 5;
     public const int WindowSeconds = 60;
 
-    public RateLimitedApiFactory() : base(PermitLimit, WindowSeconds)
+    public RateLimitedApiFactory() : this(GlobalPermitLimit, EstritoPermitLimit)
+    {
+    }
+
+    public RateLimitedApiFactory(int globalPermitLimit, int estritoPermitLimit)
+        : base(globalPermitLimit, estritoPermitLimit, WindowSeconds)
     {
     }
 }

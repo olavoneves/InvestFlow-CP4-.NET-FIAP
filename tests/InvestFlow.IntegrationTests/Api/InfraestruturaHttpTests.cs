@@ -73,6 +73,13 @@ public class InfraestruturaHttpTests : IClassFixture<InvestFlowApiFactory>
         listarAtivos.GetProperty("responses").EnumerateObject().Select(r => r.Name)
             .Should().Contain(new[] { "200", "400", "429", "500" });
 
+        // Política estrita documentada só na listagem de ativos.
+        listarAtivos.GetProperty("description").GetString().Should().Contain("estrito").And.Contain("5 requisições");
+        listarAtivos.GetProperty("responses").GetProperty("429").GetProperty("description").GetString()
+            .Should().Contain("estrito");
+        paths.GetProperty("/api/v1/ordens").GetProperty("get").GetProperty("description").GetString()
+            .Should().NotContain("estrito");
+
         paths.GetProperty("/api/v1/ativos").GetProperty("post").GetProperty("responses")
             .EnumerateObject().Select(r => r.Name).Should().Contain("201");
 

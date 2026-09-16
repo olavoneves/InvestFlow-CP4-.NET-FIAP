@@ -1,11 +1,9 @@
-using InvestFlow.Api.Configuration;
 using InvestFlow.Api.Observability;
 using InvestFlow.Application.Common;
 using InvestFlow.Application.DTOs.Ordens;
 using InvestFlow.Application.Services;
 using Microsoft.ApplicationInsights;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace InvestFlow.Api.Controllers;
@@ -13,9 +11,8 @@ namespace InvestFlow.Api.Controllers;
 /// <summary>Registro e acompanhamento de ordens de compra e venda de ativos.</summary>
 [ApiController]
 [Route("api/v1/[controller]")]
-[EnableRateLimiting(RateLimitingExtensions.PoliticaFixa)]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
-[SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite de requisições por IP excedido. Consulte o header Retry-After.", typeof(ProblemDetails))]
+[SwaggerResponse(StatusCodes.Status429TooManyRequests, "Limite global de requisições por IP excedido. Consulte o header Retry-After.", typeof(ProblemDetails))]
 [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
 [SwaggerResponse(StatusCodes.Status500InternalServerError, "Erro inesperado.", typeof(ProblemDetails))]
 public class OrdensController : ControllerBase
