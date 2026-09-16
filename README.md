@@ -28,6 +28,16 @@ também é aceita e tem prioridade sobre `APPLICATIONINSIGHTS_CONNECTION_STRING`
 
 ### Rate limiting
 
-Janela fixa por IP do cliente, padrão de 5 requisições a cada 10 segundos. Ajustável pela seção
-`RateLimiting` (`PermitLimit`, `WindowSeconds`) ou pelas variáveis `RateLimiting__PermitLimit` e
-`RateLimiting__WindowSeconds`.
+Janela fixa por IP do cliente, com duas políticas:
+
+| Política | Onde se aplica | Padrão |
+|---|---|---|
+| Global | Todas as rotas, exceto `/swagger/*`, `/health` e `/health/live` | 30 requisições / 10 s |
+| `estrito` | Somente `GET /api/v1/ativos` (além da global) | 5 requisições / 10 s |
+
+Acima do limite a resposta é 429 em ProblemDetails, com o header `Retry-After`. Os health checks ficam fora
+porque são sondados em alta frequência por orquestradores e monitores; as chamadas de API feitas pelo
+Swagger UI continuam limitadas, pois a isenção vale apenas para os arquivos do próprio Swagger.
+
+Ajustável pelas seções `RateLimiting:Global` e `RateLimiting:Estrito` (`PermitLimit`, `WindowSeconds`) ou
+por variáveis de ambiente como `RateLimiting__Estrito__PermitLimit`.
