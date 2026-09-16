@@ -2,6 +2,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json.Serialization;
 using InvestFlow.Api.Errors;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ApplicationModels;
 
 namespace InvestFlow.Api.Configuration;
 
@@ -19,6 +20,9 @@ public static class ControllersExtensions
                 // Os DTOs usam [Required] explícito. Sem isto, um JSON malformado gera também um erro
                 // "The request field is required." para o parâmetro, além do erro real de conversão.
                 options.SuppressImplicitRequiredAttributeForNonNullableReferenceTypes = true;
+
+                // [controller] em minúsculas: vale para o roteamento, a geração de links (Location) e o Swagger.
+                options.Conventions.Add(new RouteTokenTransformerConvention(new MinusculasParameterTransformer()));
             })
             .AddJsonOptions(options =>
             {
@@ -39,8 +43,11 @@ public static class ControllersExtensions
                     ContentTypes = { "application/problem+json" },
                 });
 
-        services.AddRouting(options => options.LowercaseUrls = true);
-
         return services;
+    }
+
+    private sealed class MinusculasParameterTransformer : IOutboundParameterTransformer
+    {
+        public string? TransformOutbound(object? value) => value?.ToString()?.ToLowerInvariant();
     }
 }
