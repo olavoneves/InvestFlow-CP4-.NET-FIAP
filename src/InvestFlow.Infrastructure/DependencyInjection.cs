@@ -56,9 +56,12 @@ public static class DependencyInjection
         if (string.IsNullOrWhiteSpace(valor))
             return DatabaseProvider.Sqlite;
 
-        if (Enum.TryParse<DatabaseProvider>(valor.Trim(), ignoreCase: true, out var provider)
-            && Enum.IsDefined(provider))
-            return provider;
+        // Compara só com os nomes: Enum.TryParse aceitaria valores numéricos como "1".
+        var nome = Enum.GetNames<DatabaseProvider>()
+            .FirstOrDefault(n => string.Equals(n, valor.Trim(), StringComparison.OrdinalIgnoreCase));
+
+        if (nome is not null)
+            return Enum.Parse<DatabaseProvider>(nome);
 
         throw new InvalidOperationException(
             $"Valor inválido em '{ProviderConfigKey}': '{valor}'. Use 'Sqlite' ou 'SqlServer'.");
