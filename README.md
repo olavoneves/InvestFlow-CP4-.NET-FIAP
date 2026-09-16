@@ -97,7 +97,6 @@ flowchart TB
     API -.->|somente registro de DI| INFRA
     APP -->|usa entidades e interfaces| DOM
     INFRA -->|implementa interfaces| DOM
-    INFRA -.->|referência permitida| APP
     Tests --> API
     Tests --> APP
 ```
@@ -601,6 +600,8 @@ Headers: `Retry-After: 10`
 
 | Nome | RM |
 |---|---|
-| `<Nome completo>` | `RM000000` |
-| `<Nome completo>` | `RM000000` |
-| `<Nome completo>` | `RM000000` |
+| Olavo Porto Neves | RM563558 |
+| Pedro Henrique Dias França | RM561940 |
+| Luiz Gustavo Gonçalves | RM564495 |
+| Altamir Lima | RM562906 |
+| Felipe Conte | RM562248 |
