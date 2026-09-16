@@ -273,3 +273,316 @@ Ajustável pelas seções `RateLimiting:Global` e `RateLimiting:Estrito` (`Permi
 por variáveis de ambiente como `RateLimiting__Estrito__PermitLimit`. Valores menores ou iguais a zero impedem
 a subida da aplicação.
 
+## Endpoints
+
+Base: `/api/v1`. Enums trafegam pelo nome (`"Acao"`, `"Compra"`, `"Pendente"`). Toda listagem aceita
+`PageNumber` (padrão 1) e `PageSize` (padrão 10, máximo 50).
+
+| Método | Rota | Descrição | Sucesso | Erros |
+|---|---|---|---|---|
+| `GET` | `/api/v1/ativos` | Lista ativos paginados. Filtros: `Tipo`, `Busca` (trecho do ticker ou nome). **Política estrita.** | 200 | 400, 429 |
+| `GET` | `/api/v1/ativos/{id}` | Obtém um ativo. | 200 | 404, 429 |
+| `POST` | `/api/v1/ativos` | Cadastra um ativo. Header `Location` aponta para o recurso. | 201 | 400, 429 |
+| `PUT` | `/api/v1/ativos/{id}` | Atualiza nome, tipo e preço (ticker é imutável). | 200 | 400, 404, 429 |
+| `DELETE` | `/api/v1/ativos/{id}` | Exclui um ativo sem ordens. | 204 | 404, 409, 429 |
+| `GET` | `/api/v1/ordens` | Lista ordens paginadas, da mais recente para a mais antiga. Filtros: `AtivoId`, `Status`, `DataInicio`, `DataFim`. | 200 | 400, 429 |
+| `GET` | `/api/v1/ordens/{id}` | Obtém uma ordem com nome do ativo e valor financeiro. | 200 | 404, 429 |
+| `POST` | `/api/v1/ordens` | Registra uma ordem `Pendente`. | 201 | 400, 429 |
+| `POST` | `/api/v1/ordens/{id}/executar` | `Pendente` → `Executada`. | 200 | 404, 409, 429 |
+| `POST` | `/api/v1/ordens/{id}/cancelar` | `Pendente` → `Cancelada`. | 200 | 404, 409, 429 |
+| `DELETE` | `/api/v1/ordens/{id}` | Exclui uma ordem. | 204 | 404, 429 |
+| `GET` | `/health` | Status da aplicação e do banco (JSON). | 200 | 503 |
+| `GET` | `/health/live` | Liveness (`Healthy`, texto). | 200 | — |
+
+Qualquer endpoint da API pode ainda responder **500** em ProblemDetails genérico, sem detalhes internos.
+
+| Status | Quando |
+|---|---|
+| 400 | DataAnnotations violadas, JSON inválido, paginação fora dos limites, ticker duplicado, `AtivoId` inexistente no corpo, `DataInicio` > `DataFim`. |
+| 404 | Id da URL não existe. |
+| 409 | Regra de negócio violada: excluir ativo com ordens, executar ordem não pendente, cancelar ordem executada ou já cancelada. |
+| 429 | Limite de requisições excedido (header `Retry-After`). |
+
+Os exemplos abaixo foram capturados da API rodando com o seed padrão.
+
+### Resposta paginada — `GET /api/v1/ordens?Status=Executada&PageNumber=2&PageSize=2`
+
+`200 OK`
+
+```json
+{
+  "items": [
+    {
+      "id": 47,
+      "ativoId": 2,
+      "nomeAtivo": "Vale ON",
+      "lado": "Compra",
+      "quantidade": 600,
+      "precoExecucao": 61.8802,
+      "valorFinanceiro": 37128.1200,
+      "dataExecucao": "2026-04-06T23:19:00",
+      "status": "Executada"
+    },
+    {
+      "id": 46,
+      "ativoId": 1,
+      "nomeAtivo": "Petrobras PN",
+      "lado": "Compra",
+      "quantidade": 500,
+      "precoExecucao": 37.7769,
+      "valorFinanceiro": 18888.4500,
+      "dataExecucao": "2026-04-04T23:02:00",
+      "status": "Executada"
+    }
+  ],
+  "pageNumber": 2,
+  "pageSize": 2,
+  "totalCount": 45,
+  "totalPages": 23,
+  "hasNext": true,
+  "hasPrevious": true
+}
+```
+
+### `GET /api/v1/ativos?PageNumber=1&PageSize=2`
+
+`200 OK` — ordenado por ticker.
+
+```json
+{
+  "items": [
+    { "id": 3, "ticker": "HGLG11", "nome": "CSHG Logística FII", "tipo": "FII", "precoAtual": 162.35, "criadoEm": "2026-01-02T10:00:00" },
+    { "id": 4, "ticker": "IPCA2035", "nome": "Tesouro IPCA+ 2035", "tipo": "RendaFixa", "precoAtual": 2150.78, "criadoEm": "2026-01-02T10:00:00" }
+  ],
+  "pageNumber": 1,
+  "pageSize": 2,
+  "totalCount": 5,
+  "totalPages": 3,
+  "hasNext": true,
+  "hasPrevious": false
+}
+```
+
+### `GET /api/v1/ativos/1`
+
+`200 OK`
+
+```json
+{
+  "id": 1,
+  "ticker": "PETR4",
+  "nome": "Petrobras PN",
+  "tipo": "Acao",
+  "precoAtual": 38.12,
+  "criadoEm": "2026-01-02T10:00:00"
+}
+```
+
+### `POST /api/v1/ativos`
+
+Request:
+
+```json
+{
+  "ticker": " itub4 ",
+  "nome": "Itaú Unibanco PN",
+  "tipo": "Acao",
+  "precoAtual": 33.47
+}
+```
+
+`201 Created` — `Location: http://localhost:5232/api/v1/ativos/6`
+
+```json
+{
+  "id": 6,
+  "ticker": "ITUB4",
+  "nome": "Itaú Unibanco PN",
+  "tipo": "Acao",
+  "precoAtual": 33.47,
+  "criadoEm": "2026-09-16T23:09:51.3407929Z"
+}
+```
+
+### `PUT /api/v1/ativos/6`
+
+Request:
+
+```json
+{
+  "nome": "Itaú Unibanco PN",
+  "tipo": "Acao",
+  "precoAtual": 34.10
+}
+```
+
+`200 OK`
+
+```json
+{
+  "id": 6,
+  "ticker": "ITUB4",
+  "nome": "Itaú Unibanco PN",
+  "tipo": "Acao",
+  "precoAtual": 34.1,
+  "criadoEm": "2026-09-16T23:09:51.3407929"
+}
+```
+
+### `POST /api/v1/ordens`
+
+Request (`dataExecucao` é opcional):
+
+```json
+{
+  "ativoId": 1,
+  "lado": "Compra",
+  "quantidade": 100,
+  "precoExecucao": 38.15,
+  "dataExecucao": "2026-09-16T14:30:00Z"
+}
+```
+
+`201 Created` — `Location: http://localhost:5232/api/v1/ordens/61`
+
+```json
+{
+  "id": 61,
+  "ativoId": 1,
+  "nomeAtivo": "Petrobras PN",
+  "lado": "Compra",
+  "quantidade": 100,
+  "precoExecucao": 38.15,
+  "valorFinanceiro": 3815.00,
+  "dataExecucao": "2026-09-16T14:30:00",
+  "status": "Pendente"
+}
+```
+
+### `POST /api/v1/ordens/61/executar`
+
+Sem corpo. `200 OK`
+
+```json
+{
+  "id": 61,
+  "ativoId": 1,
+  "nomeAtivo": "Petrobras PN",
+  "lado": "Compra",
+  "quantidade": 100,
+  "precoExecucao": 38.15,
+  "valorFinanceiro": 3815.00,
+  "dataExecucao": "2026-09-16T14:30:00",
+  "status": "Executada"
+}
+```
+
+`POST /api/v1/ordens/{id}/cancelar` responde no mesmo formato, com `"status": "Cancelada"`.
+Os dois `DELETE` respondem `204 No Content`, sem corpo.
+
+### 400 Bad Request — `POST /api/v1/ativos`
+
+Request:
+
+```json
+{
+  "ticker": "PETR4",
+  "nome": "",
+  "tipo": "Acao",
+  "precoAtual": 0
+}
+```
+
+Response (`application/problem+json`), com os erros agrupados por campo:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Um ou mais erros de validação ocorreram.",
+  "status": 400,
+  "instance": "/api/v1/ativos",
+  "errors": {
+    "Nome": ["Nome é obrigatório."],
+    "PrecoAtual": ["PrecoAtual deve estar entre 0,0001 e 99999999999999,9999."]
+  },
+  "traceId": "00-046cdc323f8554cb9ee31fc34bf3acfc-232069670856a96a-00"
+}
+```
+
+Paginação fora do limite (`GET /api/v1/ativos?PageSize=100`) segue o mesmo formato:
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.1",
+  "title": "Um ou mais erros de validação ocorreram.",
+  "status": 400,
+  "instance": "/api/v1/ativos",
+  "errors": {
+    "PageSize": ["PageSize deve estar entre 1 e 50."]
+  },
+  "traceId": "00-fa2cb07c75e1c41db7d7e80fc0757b56-220b825fcb0a1e70-00"
+}
+```
+
+### 404 Not Found — `GET /api/v1/ativos/999`
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.5",
+  "title": "Recurso não encontrado.",
+  "status": 404,
+  "detail": "Ativo com id 999 não foi encontrado.",
+  "instance": "/api/v1/ativos/999",
+  "traceId": "00-f05d16cd9f8f0f884d897fe24b203bfe-626ffdbdc93bf508-00"
+}
+```
+
+### 409 Conflict — `DELETE /api/v1/ativos/1`
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.5.10",
+  "title": "A operação conflita com o estado atual do recurso.",
+  "status": 409,
+  "detail": "Não é possível excluir um ativo que possui ordens.",
+  "instance": "/api/v1/ativos/1",
+  "traceId": "00-e580778227f17e8f489e669824c1419c-b1ad423931f4aa77-00"
+}
+```
+
+Mesmo formato ao cancelar uma ordem executada: `"detail": "Não é possível cancelar uma ordem já executada."`.
+
+### 429 Too Many Requests — 6ª chamada a `GET /api/v1/ativos` em 10 s
+
+Headers: `Retry-After: 10`
+
+```json
+{
+  "type": "https://tools.ietf.org/html/rfc6585#section-4",
+  "title": "Muitas requisições.",
+  "status": 429,
+  "detail": "Limite de requisições excedido para este cliente. Tente novamente em 10s.",
+  "instance": "/api/v1/ativos",
+  "traceId": "00-448add8d94bdf55ef13092b51a81678c-9a8a776ebabdfb2b-00"
+}
+```
+
+### `GET /health`
+
+`200 OK`
+
+```json
+{
+  "status": "Healthy",
+  "totalDuration": "00:00:00.0214409",
+  "entries": {
+    "database": {
+      "data": {},
+      "duration": "00:00:00.0146001",
+      "status": "Healthy",
+      "tags": []
+    }
+  }
+}
+```
+
