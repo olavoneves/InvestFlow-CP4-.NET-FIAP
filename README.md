@@ -140,12 +140,98 @@ tests/InvestFlow.IntegrationTests -> WebApplicationFactory (HTTP completo) e rep
 | **Swagger com Annotations e XML comments** | `[SwaggerOperation]`, `[SwaggerResponse]` e `[ProducesResponseType]` documentam todos os status; os `<example>` dos DTOs preenchem os exemplos da UI. |
 | **Testes de integração com `WebApplicationFactory` + SQLite em memória** | Exercitam o `Program.cs` real (middlewares, rate limiting, compressão, Swagger, migrations e seed), isolados por instância e sem dependência externa. |
 
+## Como rodar
+
+### Pré-requisitos
+
+- [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0)
+- Nada mais: o banco padrão é SQLite, criado automaticamente.
+
+### Executar
+
+```bash
+git clone https://github.com/olavoneves/InvestFlow-CP4-.NET-FIAP.git
+cd InvestFlow-CP4-.NET-FIAP
+dotnet build
+dotnet run --project src/InvestFlow.Api
+```
+
+O perfil padrão (`http`) sobe em ambiente `Development` e aplica as migrations e o seed na subida, criando
+`src/InvestFlow.Api/investflow.db`.
+
+| Recurso | URL |
+|---|---|
+| **Swagger UI** | http://localhost:5232/swagger |
+| OpenAPI JSON | http://localhost:5232/swagger/v1/swagger.json |
+| Health check detalhado | http://localhost:5232/health |
+| Liveness | http://localhost:5232/health/live |
+
+Com HTTPS: `dotnet run --project src/InvestFlow.Api --launch-profile https` → https://localhost:7026/swagger.
+
+> As migrations só são aplicadas automaticamente em `Development`. Em outro ambiente, aplique antes com
+> `dotnet ef database update --project src/InvestFlow.Infrastructure --startup-project src/InvestFlow.Api --context SqliteAppDbContext`
+> (requer `dotnet tool install --global dotnet-ef`; no SQL Server use `--context SqlServerAppDbContext`).
+
+Os logs estruturados ficam em `src/InvestFlow.Api/logs/investflow-AAAAMMDD.json` (um evento JSON por
+linha, retenção de 7 dias), além do console.
+
+## Testes
+
+```bash
+dotnet test
+```
+
+**227 testes**, todos passando:
+
+| Projeto | Testes | O que cobre |
+|---|---|---|
+| `InvestFlow.UnitTests` | 99 | Regras das entidades `Ativo` e `Ordem`, services com repositórios mockados (Moq), perfis do AutoMapper, validação dos DTOs, `PagedResult` e registro de DI. |
+| `InvestFlow.IntegrationTests` | 128 | Ciclo HTTP completo via `WebApplicationFactory`: CRUD, 400/404/409, formato do ProblemDetails, rate limiting (429 e rotas isentas), compressão, health checks, Swagger, métrica do Application Insights; repositórios, índices, seed e FK sobre SQLite em memória. |
+
+Os números contam casos executados (cada `InlineData` de um `[Theory]` conta como um teste). Para rodar
+apenas um projeto:
+
+```bash
+dotnet test tests/InvestFlow.UnitTests
+dotnet test tests/InvestFlow.IntegrationTests
+```
+
 ## Configuração
+
+Toda chave do `appsettings.json` pode ser sobrescrita por variável de ambiente, trocando `:` por `__`.
+
+### Banco de dados
+
+| Chave | Padrão | Descrição |
+|---|---|---|
+| `Database:Provider` | `Sqlite` | `Sqlite` ou `SqlServer`. |
+| `ConnectionStrings:DefaultConnection` | `Data Source=investflow.db` | Opcional no SQLite (usa o padrão); **obrigatória** no SQL Server. |
+
+O provider é trocado só por configuração, sem alterar código — cada um tem seu `DbContext` e suas migrations
+(`Persistence/Migrations/Sqlite` e `Persistence/Migrations/SqlServer`):
+
+```powershell
+# PowerShell
+$env:Database__Provider = "SqlServer"
+$env:ConnectionStrings__DefaultConnection = "Server=(localdb)\mssqllocaldb;Database=InvestFlow;Trusted_Connection=True;TrustServerCertificate=True"
+dotnet run --project src/InvestFlow.Api
+```
+
+```bash
+# Bash
+Database__Provider=SqlServer \
+ConnectionStrings__DefaultConnection="Server=localhost;Database=InvestFlow;User Id=sa;Password=<senha>;TrustServerCertificate=True" \
+dotnet run --project src/InvestFlow.Api
+```
+
+Um valor inválido em `Database:Provider`, ou `SqlServer` sem connection string, impede a subida com mensagem
+explicando o problema.
 
 ### Application Insights
 
-A telemetria só é habilitada quando existe uma connection string. Sem ela, a API sobe normalmente
-e a telemetria (inclusive a métrica customizada `ordens.criadas`) é descartada.
+**A connection string é opcional.** A telemetria só é habilitada quando ela existe. Sem ela, a API sobe
+normalmente, registra no log `Application Insights desabilitado: connection string não configurada.` e a
+telemetria (inclusive a métrica customizada `ordens.criadas`) é descartada.
 
 **Nunca coloque a connection string real no `appsettings.json`** — o valor versionado é um placeholder vazio.
 Configure por variável de ambiente:
@@ -164,6 +250,9 @@ APPLICATIONINSIGHTS_CONNECTION_STRING="InstrumentationKey=...;IngestionEndpoint=
 A chave `ApplicationInsights__ConnectionString` (equivalente a `ApplicationInsights:ConnectionString`)
 também é aceita e tem prioridade sobre `APPLICATIONINSIGHTS_CONNECTION_STRING`.
 
+Quando habilitado, além da telemetria automática de requisições e dependências, cada ordem criada emite a
+métrica `ordens.criadas` com a dimensão `Lado` (`Compra`/`Venda`).
+
 ### Rate limiting
 
 Janela fixa por IP do cliente, com duas políticas:
@@ -173,9 +262,14 @@ Janela fixa por IP do cliente, com duas políticas:
 | Global | Todas as rotas, exceto `/swagger/*`, `/health` e `/health/live` | 30 requisições / 10 s |
 | `estrito` | Somente `GET /api/v1/ativos` (além da global) | 5 requisições / 10 s |
 
+**Rotas isentas:** `/swagger` e tudo abaixo dele (UI, assets e `swagger.json`), `/health` e `/health/live`.
+
+Em `GET /api/v1/ativos` as duas políticas são consumidas; basta uma se esgotar para a resposta ser 429.
 Acima do limite a resposta é 429 em ProblemDetails, com o header `Retry-After`. Os health checks ficam fora
 porque são sondados em alta frequência por orquestradores e monitores; as chamadas de API feitas pelo
 Swagger UI continuam limitadas, pois a isenção vale apenas para os arquivos do próprio Swagger.
 
 Ajustável pelas seções `RateLimiting:Global` e `RateLimiting:Estrito` (`PermitLimit`, `WindowSeconds`) ou
-por variáveis de ambiente como `RateLimiting__Estrito__PermitLimit`.
+por variáveis de ambiente como `RateLimiting__Estrito__PermitLimit`. Valores menores ou iguais a zero impedem
+a subida da aplicação.
+
