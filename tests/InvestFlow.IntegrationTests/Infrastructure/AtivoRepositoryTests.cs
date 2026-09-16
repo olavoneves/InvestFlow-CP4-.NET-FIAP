@@ -52,15 +52,57 @@ public class AtivoRepositoryTests : IDisposable
     }
 
     [Fact]
-    public async Task GetPagedAsync_FiltraPorParteDoTickerSemDiferenciarCaixa()
+    public async Task GetPagedAsync_BuscaPorParteDoTickerSemDiferenciarCaixa()
     {
         await using var context = _database.CreateContext();
         var repository = new AtivoRepository(context);
 
-        var (items, total) = await repository.GetPagedAsync(1, 10, new AtivoFiltro(Ticker: "petr"));
+        var (items, total) = await repository.GetPagedAsync(1, 10, new AtivoFiltro(Busca: " petr "));
 
         total.Should().Be(1);
         items.Single().Ticker.Should().Be("PETR4");
+    }
+
+    [Theory]
+    [InlineData("vale on", "VALE3")]
+    [InlineData("CSHG LOG", "HGLG11")]
+    [InlineData("tesouro", "IPCA2035")]
+    public async Task GetPagedAsync_BuscaPorParteDoNomeSemDiferenciarCaixa(string busca, string tickerEsperado)
+    {
+        await using var context = _database.CreateContext();
+        var repository = new AtivoRepository(context);
+
+        var (items, total) = await repository.GetPagedAsync(1, 10, new AtivoFiltro(Busca: busca));
+
+        total.Should().Be(1);
+        items.Single().Ticker.Should().Be(tickerEsperado);
+    }
+
+    [Theory]
+    [InlineData("%")]
+    [InlineData("_")]
+    [InlineData("[a-z]")]
+    public async Task GetPagedAsync_BuscaComCaracteresCuringa_TrataComoTextoLiteral(string busca)
+    {
+        await using var context = _database.CreateContext();
+        var repository = new AtivoRepository(context);
+
+        var (items, total) = await repository.GetPagedAsync(1, 10, new AtivoFiltro(Busca: busca));
+
+        total.Should().Be(0);
+        items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetPagedAsync_CombinaBuscaETipo()
+    {
+        await using var context = _database.CreateContext();
+        var repository = new AtivoRepository(context);
+
+        var (items, total) = await repository.GetPagedAsync(1, 10, new AtivoFiltro(Busca: "o", Tipo: TipoAtivo.FII));
+
+        total.Should().Be(1);
+        items.Single().Ticker.Should().Be("HGLG11");
     }
 
     [Fact]
