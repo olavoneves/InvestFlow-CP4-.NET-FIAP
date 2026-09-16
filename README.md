@@ -113,6 +113,33 @@ tests/InvestFlow.UnitTests        -> entidades, services (Moq), mapeamentos, val
 tests/InvestFlow.IntegrationTests -> WebApplicationFactory (HTTP completo) e repositórios sobre SQLite
 ```
 
+## Decisões técnicas
+
+| Decisão | Por quê |
+|---|---|
+| **Entidades ricas** (setters privados, construtor e métodos que validam) | A regra de negócio fica num único lugar. Não existe `Ordem` com quantidade zero nem transição de status inválida, venha a chamada de onde vier. |
+| **Interfaces de repositório no Domain** | A Application depende de abstrações, não do EF Core. Os services são testados com Moq, sem banco. |
+| **DTOs separados das entidades** (`*CreateRequest`, `*UpdateRequest`, `*Response`, `*Query`) | O contrato HTTP não vaza o modelo de persistência, e o `Ticker` pode ficar fora do `AtivoUpdateRequest` por ser imutável. |
+| **AutoMapper só no sentido entidade → response** | A criação e a alteração passam pelo construtor e pelos métodos da entidade, que validam; mapear request → entidade contornaria essas regras. `NomeAtivo` e `ValorFinanceiro` são mapeados explicitamente e cobertos por `AssertConfigurationIsValid`. |
+| **Validação no service, além do model binding** | `RequestValidator` executa as DataAnnotations dentro do service, então a regra vale mesmo fora do pipeline MVC (testes, outros consumidores). Os dois caminhos geram o mesmo 400. |
+| **Paginação obrigatória com `PagedResult<T>`** | Nenhuma listagem devolve a tabela inteira. `PageSize` máximo de 50 limita o custo por requisição; `totalCount`, `totalPages`, `hasNext` e `hasPrevious` permitem navegar sem cálculo no cliente. |
+| **Ordenação estável** (`DataExecucao DESC, Id DESC`; `Ticker, Id`) | Sem desempate, `Skip/Take` pode repetir ou pular registros entre páginas. |
+| **Índices declarados explicitamente** | `IX_Ativos_Ticker` (único) garante a unicidade mesmo sob concorrência e acelera a busca por ticker. `IX_Ordens_AtivoId` atende o filtro por ativo, o JOIN e a checagem antes de excluir um ativo — o SQL Server não indexa FK sozinho. `IX_Ordens_DataExecucao_Status` serve a ordenação da listagem e o filtro por período e status. |
+| **`decimal(18,4)` nos campos monetários** | Cotações e preços de execução têm até 4 casas. Os limites de `Range` nos DTOs acompanham a precisão da coluna. |
+| **FK `Restrict`** | Apagar um ativo não pode apagar o histórico de ordens em cascata. O service verifica antes e responde 409 com mensagem clara. |
+| **`AsNoTracking` nas leituras, `GetByIdForUpdateAsync` nas escritas** | Leitura sem custo de change tracking; a escrita trabalha sobre a entidade rastreada. |
+| **Um `DbContext` derivado por provider** (`SqliteAppDbContext`, `SqlServerAppDbContext`) | Os tipos de coluna gerados diferem entre providers; cada um tem seu próprio conjunto de migrations e o provider é escolhido por configuração. |
+| **SQLite como padrão** | Roda sem instalar nada: o avaliador clona, executa `dotnet run` e já tem banco com dados. |
+| **Middleware global de exceções → ProblemDetails** | Controllers sem `try/catch`. `ValidationException` → 400, `NotFoundException` → 404, `DomainException` → 409, qualquer outra → 500 genérico, sem stack trace. O 400 do model binding e o 429 usam o mesmo `ApiProblemDetails`, então todo erro tem o mesmo formato e carrega `traceId`. |
+| **Ativo inexistente ao criar ordem → 400, não 404** | O id vem no corpo: é dado inválido da requisição, não recurso da URL ausente. |
+| **Rate limiting nativo** (`Microsoft.AspNetCore.RateLimiting`) | Sem pacote extra. Janela fixa por IP, limites configuráveis e validados na subida (`ValidateOnStart`). |
+| **Brotli + Gzip com nível `Fastest`** | Listagens JSON comprimem muito; `Fastest` reduz o tamanho sem gastar CPU demais por requisição. Habilitado também para HTTPS e para `application/problem+json`. |
+| **Serilog** (console + arquivo JSON compacto) | Log estruturado: cada propriedade (`Method`, `Path`, `RequestId`, `Errors`) é consultável, não só texto. `RequestId` entra no `LogContext` para correlacionar todos os logs de uma requisição. |
+| **Application Insights opcional** | Sem connection string a API sobe normalmente com um `TelemetryClient` desabilitado, então o código que emite a métrica `ordens.criadas` não precisa de `if`. Nenhum segredo é versionado. |
+| **Health checks em duas rotas** | `/health` verifica o banco e responde JSON detalhado; `/health/live` não executa checks e serve de liveness barato. Ambos ficam fora do rate limiting. |
+| **Swagger com Annotations e XML comments** | `[SwaggerOperation]`, `[SwaggerResponse]` e `[ProducesResponseType]` documentam todos os status; os `<example>` dos DTOs preenchem os exemplos da UI. |
+| **Testes de integração com `WebApplicationFactory` + SQLite em memória** | Exercitam o `Program.cs` real (middlewares, rate limiting, compressão, Swagger, migrations e seed), isolados por instância e sem dependência externa. |
+
 ## Configuração
 
 ### Application Insights
