@@ -50,10 +50,16 @@ public class AtivoRepository : IAtivoRepository
 
         var query = _context.Ativos.AsNoTracking();
 
-        if (!string.IsNullOrWhiteSpace(filtro?.Ticker))
+        if (!string.IsNullOrWhiteSpace(filtro?.Busca))
         {
-            var ticker = NormalizarTicker(filtro.Ticker);
-            query = query.Where(a => a.Ticker.Contains(ticker));
+            var ticker = NormalizarTicker(filtro.Busca);
+
+            // O ticker é gravado em maiúsculas, então basta normalizar o termo. O nome tem caixa mista:
+            // LIKE ignora a caixa no SQLite (ASCII) e na collation padrão do SQL Server.
+            var padraoNome = $"%{EscaparLike(filtro.Busca.Trim())}%";
+            query = query.Where(a =>
+                a.Ticker.Contains(ticker) ||
+                EF.Functions.Like(a.Nome, padraoNome, LikeEscape));
         }
 
         if (filtro?.Tipo is not null)
@@ -92,4 +98,14 @@ public class AtivoRepository : IAtivoRepository
 
     // Mesma normalização aplicada pela entidade Ativo ao gravar o ticker.
     private static string NormalizarTicker(string ticker) => ticker.Trim().ToUpperInvariant();
+
+    private const string LikeEscape = "\\";
+
+    // Trata %, _ e [ digitados pelo usuário como texto literal, e não como curingas do LIKE.
+    private static string EscaparLike(string termo) =>
+        termo
+            .Replace(LikeEscape, LikeEscape + LikeEscape)
+            .Replace("%", LikeEscape + "%")
+            .Replace("_", LikeEscape + "_")
+            .Replace("[", LikeEscape + "[");
 }
