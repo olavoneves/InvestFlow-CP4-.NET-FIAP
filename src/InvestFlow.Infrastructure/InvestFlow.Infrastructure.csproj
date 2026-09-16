@@ -1,7 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\InvestFlow.Application\InvestFlow.Application.csproj" />
     <ProjectReference Include="..\InvestFlow.Domain\InvestFlow.Domain.csproj" />
   </ItemGroup>
 

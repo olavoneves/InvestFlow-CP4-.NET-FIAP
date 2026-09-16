@@ -19,7 +19,7 @@ builder.Services.AddApiControllers();
 // 2. Response Compression: Brotli + Gzip.
 builder.Services.AddApiResponseCompression();
 
-// 3. Rate Limiting nativo: janela fixa por IP, global + política nomeada "fixed".
+// 3. Rate Limiting nativo: janela fixa por IP, global (30 req/10s) + política nomeada "estrito" (5 req/10s em GET /api/v1/ativos).
 builder.Services.AddApiRateLimiting(builder.Configuration);
 
 // 4. Health Checks, incluindo o banco via DbContext.
@@ -49,7 +49,7 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseResponseCompression();
 app.UseHttpsRedirection();
 
-// UseRouting explícito antes do rate limiter, para que a política do endpoint ("fixed") seja conhecida.
+// UseRouting explícito antes do rate limiter, para que a política do endpoint ("estrito") seja conhecida.
 app.UseRouting();
 app.UseRateLimiter();
 
