@@ -13,10 +13,12 @@ public class PageRequest
     public const int MaxPageNumber = int.MaxValue / MaxPageSize;
 
     /// <summary>Número da página, a partir de 1.</summary>
+    /// <example>1</example>
     [Range(1, MaxPageNumber, ErrorMessage = "PageNumber deve estar entre {1} e {2}.")]
     public int PageNumber { get; set; } = DefaultPageNumber;
 
     /// <summary>Quantidade de itens por página (máximo 50).</summary>
+    /// <example>10</example>
     [Range(1, MaxPageSize, ErrorMessage = "PageSize deve estar entre {1} e {2}.")]
     public int PageSize { get; set; } = DefaultPageSize;
 }
